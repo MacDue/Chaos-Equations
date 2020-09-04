@@ -340,15 +340,72 @@ int main(int argc, char *argv[]) {
     glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_count * sizeof(VertexColour), reinterpret_cast<GLfloat*>(vertex_colour.data()));
   };
 
-  //Imgui
+  //ImGui
   ImguiSetup(window);
+
+  //Framebuffer
+  GLuint fb;
+  glGenFramebuffers(1, &fb);
+  glBindFramebuffer(GL_FRAMEBUFFER, fb);
+
+  GLuint fb_texture;
+  glGenTextures(1, &fb_texture);
+  glBindTexture(GL_TEXTURE_2D, fb_texture);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_w, window_h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+  glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, fb_texture, 0);
+
+  GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
+  glDrawBuffers(1, draw_buffers);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		return false;
+
+  static GLfloat fb_quad[] = {
+    // positions   // texture coords
+     1.0f,  1.0f,  1.0f, 1.0f,   // top right
+     1.0f, -1.0f,  1.0f, 0.0f,   // bottom right
+    -1.0f, -1.0f,  0.0f, 0.0f,   // bottom left
+    -1.0f,  1.0f,  0.0f, 1.0f    // top left
+  };
+  //Probably makes more sense to use a triangle strip
+  static GLuint fb_idxs[] = {
+    0, 1, 3,
+    1, 2, 3
+  };
+
+  GLuint trails;
+  glGenVertexArrays(1, &trails);
+  glBindVertexArray(trails);
+
+  GLuint fb_vertices;
+  glGenBuffers(1, &fb_vertices);
+  glBindBuffer(GL_ARRAY_BUFFER, fb_vertices);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(fb_quad), fb_quad, GL_STATIC_DRAW);
+
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), nullptr);
+
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
+
+  GLuint fb_tris;
+  glGenBuffers(1, &fb_tris);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, fb_tris);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(fb_idxs), fb_idxs, GL_STATIC_DRAW);
 
   //Initialize shaders
   {
-    ShaderProgram shader(
-      "./shaders/vertex.glsl",
-      "./shaders/frag.glsl", "");
-    shader.use();
+    ShaderProgram point_shader(
+      "./shaders/point_vertex.glsl",
+      "./shaders/point_frag.glsl", "");
+    ShaderProgram trail_shader(
+      "./shaders/trail_vertex.glsl",
+      "./shaders/trail_frag.glsl",
+      "");
+
     glEnable(GL_PROGRAM_POINT_SIZE);
 
     //Initialize random parameters
@@ -427,20 +484,6 @@ int main(int argc, char *argv[]) {
         RenderEquation = GenerateNew(window, t, params);
       }
 
-      // sf::BlendMode fade(sf::BlendMode::One, sf::BlendMode::One, sf::BlendMode::ReverseSubtract);
-      // sf::RenderStates renderBlur(fade);
-
-      // sf::RectangleShape fullscreen_rect;
-      // fullscreen_rect.setPosition(0.0f, 0.0f);
-      // fullscreen_rect.setSize(sf::Vector2f(window_w, window_h));
-
-      // static const sf::Uint8 fade_speeds[] = { 10,2,0,255 };
-      // const sf::Uint8 fade_speed = fade_speeds[trail_type];
-      // if (fade_speed >= 1) {
-      //   fullscreen_rect.setFillColor(sf::Color(fade_speed, fade_speed, fade_speed, 0));
-      //   window.draw(fullscreen_rect, renderBlur);
-      // }
-
       //Smooth out the stepping speed.
       const int steps = steps_per_frame;
       const double delta = delta_per_step * speed_mult;
@@ -496,10 +539,32 @@ int main(int argc, char *argv[]) {
       glPointSize(dot_sizes[dot_type]);
 
       NewFrame();
-      shader.uniformi("window_w", {window_w});
-      shader.uniformi("window_h", {window_h});
+      //Draw to buffer
+      glBindFramebuffer(GL_FRAMEBUFFER, fb);
+      glViewport(0, 0, window_w, window_h);
+
+      //Draw previous frame (darked a little)
+      trail_shader.use();
+      float fade_speeds[] = { 10/255.f,2/255.f, 0.0f , 1.0f };
+      trail_shader.uniformf("colour_scale", {fade_speeds[trail_type]});
+      glBindVertexArray(trails);
+      glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+      //Draw current points
+      point_shader.use();
+      point_shader.uniformi("window_w", {window_w});
+      point_shader.uniformi("window_h", {window_h});
       UpdateVertexBuffers();
+      glBindVertexArray(vertices);
       glDrawArrays(GL_POINTS, 0, vertex_pos.size());
+
+      //Draw to screen
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      trail_shader.use();
+      trail_shader.uniformf("colour_scale", {0.0f});
+      glViewport(0, 0, window_w, window_h);
+      glBindVertexArray(trails);
+      glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
       //Draw the equation
       RenderEquation();
