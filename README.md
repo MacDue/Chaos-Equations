@@ -1,4 +1,7 @@
 # Chaos-Equations
+Ported to GLFW + Dear ImGui
+
+
 Simple mathematical art
 
 **Video:** https://youtu.be/fDSIRXmnVvk
