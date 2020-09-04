@@ -196,7 +196,7 @@ static GLFWwindow* CreateRenderWindow() {
     window_h = height;
     glViewport(0, 0, window_w, window_h);
     //Bound texture should be the framebuffer
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_w, window_h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, window_w, window_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
   });
   if (!window) {
     glfwTerminate();
@@ -353,7 +353,7 @@ int main(int argc, char *argv[]) {
   GLuint fb_texture;
   glGenTextures(1, &fb_texture);
   glBindTexture(GL_TEXTURE_2D, fb_texture);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_w, window_h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, window_w, window_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
@@ -407,8 +407,6 @@ int main(int argc, char *argv[]) {
       "./shaders/trail_vertex.glsl",
       "./shaders/trail_frag.glsl",
       "");
-
-    glEnable(GL_PROGRAM_POINT_SIZE);
 
     //Initialize random parameters
     ResetPlot();
@@ -553,6 +551,10 @@ int main(int argc, char *argv[]) {
       glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
       //Draw current points
+      glEnable(GL_BLEND);
+      glEnable(GL_PROGRAM_POINT_SIZE);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
       point_shader.use();
       point_shader.uniformi("window_w", {window_w});
       point_shader.uniformi("window_h", {window_h});
@@ -561,6 +563,7 @@ int main(int argc, char *argv[]) {
       glDrawArrays(GL_POINTS, 0, vertex_pos.size());
 
       //Draw to screen
+      glDisable(GL_BLEND);
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
       trail_shader.use();
       trail_shader.uniformf("colour_scale", {0.0f});
