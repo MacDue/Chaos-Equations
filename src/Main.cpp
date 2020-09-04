@@ -195,6 +195,8 @@ static GLFWwindow* CreateRenderWindow() {
     window_w = width;
     window_h = height;
     glViewport(0, 0, window_w, window_h);
+    //Bound texture should be the framebuffer
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window_w, window_h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
   });
   if (!window) {
     glfwTerminate();
